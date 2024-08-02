@@ -194,4 +194,121 @@ const refreshAccessToken = asyncHandler( async (req: Request, res:Response, next
     }
 })
 
-export { registerUser, loginUser, logoutUser, refreshAccessToken}
+const updateCoverImage = asyncHandler( async (req: Request, res:Response, next: NextFunction)=> {
+    try{
+        const user = req.user
+        // @ts-ignore
+        const localCoverImagePath = req.file?.path
+        if(!localCoverImagePath) {
+            throw new errorAPI(401, "image not found")
+        }
+        const uploadedImage = await uploadOnCloudinary(localCoverImagePath)
+        if(!uploadedImage) {
+            throw new errorAPI(401, "cover image upload failed")
+        }
+
+        user.cover_image = uploadedImage.url
+
+        const updatedUser = await User.findByIdAndUpdate(user._id,
+            {cover_image: uploadedImage.url},
+            {new: true})
+            .select("-password -refresh_token")
+
+        return res.status(200)
+            .json(
+                new responseAPI(201, updatedUser, "cover image Updated successfully")
+            )
+    } catch (err) {
+        // @ts-ignore
+        throw new errorAPI(err?.statusCode || 401, err?.message || "image upload failed")
+    }
+})
+
+const updateAvatar = asyncHandler( async (req: Request, res:Response, next: NextFunction)=> {
+    try{
+        const localAvatarPath = req.file?.path
+
+        if(!localAvatarPath) {
+            throw new errorAPI(404, "image not found")
+        }
+
+        const avatarImage = await uploadOnCloudinary(localAvatarPath)
+        if(!avatarImage) {
+            throw new errorAPI(404, "avatar upload failed")
+        }
+        console.log(avatarImage.url)
+        const updatedUser = await User.findByIdAndUpdate(req.user._id, {avatar: avatarImage.url}, {new: true}).select("-password -refresh_token")
+        console.log(updatedUser)
+        if(!updatedUser) {
+            throw new errorAPI(404, "invalid user")
+        }
+
+        return res.status(200).json(
+            new responseAPI(201, updatedUser, "user avatar updated successfully")
+        )
+    } catch (err) {
+        // @ts-ignore
+        throw new errorAPI(err?.statusCode || 401, err?.message || "avatar upload failed")
+    }
+})
+
+const updatePassword = asyncHandler( async (req: Request, res:Response, next: NextFunction)=> {
+    try{
+        const {old_password, new_password} = req.body
+        const user = req.user
+        const userIfExist = await User.findById(user._id)
+
+        if(!userIfExist) {
+            throw new errorAPI(404, "user not found")
+        }
+
+        const isPasswordCorrect = await userIfExist.isPasswordCorrect(old_password)
+
+        if(!isPasswordCorrect) {
+            throw new errorAPI(400, "invalid old password")
+        }
+        if(old_password === new_password) {
+            throw new errorAPI(401, "new password cannot be old password")
+        }
+        user.password = new_password
+        user.save({validateBeforeSave: false})
+        return res.status(200)
+            .json(new responseAPI(201, {}, "password changed successfull"))
+    } catch (err) {
+        // @ts-ignore
+        throw new errorAPI(err?.statusCode || 401, err?.message || "password change failed")
+    }
+})
+
+const deleteUser = asyncHandler( async (req: Request, res:Response, next: NextFunction)=> {
+    try{
+        const user = req.user
+        const deletedUser = await User.findByIdAndDelete(user._id!);
+
+        if (!user) {
+            throw new errorAPI(404, 'User not found');
+        }
+
+        res.status(200).json(
+            new responseAPI(201, {} ,'User deleted successfully')
+        )
+
+        return res.status(200)
+    } catch (err) {
+        // @ts-ignore
+        throw new errorAPI(err?.statusCode || 401, err?.message || "deletion failed")
+    }
+})
+
+const getCurrentUser = asyncHandler( async (req: Request, res:Response, next: NextFunction)=> {
+    try{
+        return res.status(200).json(
+            new responseAPI<typeof User>(201, req.user,"successful")
+        )
+    } catch (err) {
+        // @ts-ignore
+        throw new errorAPI(err?.statusCode || 401, err?.message || "Unable to get user")
+    }
+})
+
+export { registerUser, loginUser, logoutUser, refreshAccessToken, updateCoverImage, updateAvatar, updatePassword, deleteUser, getCurrentUser}
