@@ -32,4 +32,4 @@ import { userRouter } from './routes/user.router.ts'
 app.use("/api/v1/user", userRouter)
 
 
-export {app};
+export { app };

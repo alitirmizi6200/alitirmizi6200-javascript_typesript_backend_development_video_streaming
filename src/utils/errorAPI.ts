@@ -1,4 +1,4 @@
-class ErrorAPI extends Error{
+class errorAPI extends Error{
     private statusCode: number;
     private error: any[];
     private success: boolean;
@@ -22,4 +22,4 @@ class ErrorAPI extends Error{
     }
 }
 
-export { ErrorAPI };
+export { errorAPI };
