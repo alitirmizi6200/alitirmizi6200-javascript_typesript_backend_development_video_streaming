@@ -1,16 +1,11 @@
 import dotenv from 'dotenv';
 import { connectDB } from './db/index.ts';
 import { app } from "./app.ts";
-import {v2 as cloudinary} from 'cloudinary'
+import { uploadOnCloudinary, configCloudinary} from './utils/cloudinary.ts'
 
 
 dotenv.config({ path: `./.env` });
-
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-});
+configCloudinary()
 
 connectDB().then(r => {
     app.listen(process.env.PORT || 8000, () => {

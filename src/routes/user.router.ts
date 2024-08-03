@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { registerUser, loginUser, logoutUser,refreshAccessToken, updatePassword, getCurrentUser, deleteUser,  updateAvatar, updateCoverImage} from '../controllers/user.controller.ts'
+import { registerUser, loginUser, logoutUser, refreshAccessToken, updatePassword, getCurrentUser, deleteUser,  updateAvatar, updateCoverImage} from '../controllers/user.controller.ts'
 import { upload } from "../middlewares/multer.middleware.ts"
 import { verifyJWT } from '../middlewares/auth.middleware.ts'
 

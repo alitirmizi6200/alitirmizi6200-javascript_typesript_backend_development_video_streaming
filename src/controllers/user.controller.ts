@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { asyncHandler } from '../utils/asyncHandler.ts'
 import { errorAPI } from "../utils/errorAPI.ts"
 import { User } from "../models/user.model.ts"
-import { uploadOnCloudinary } from '../utils/cloudinary.ts'
+import { uploadOnCloudinary, deleteFromCloudinary} from '../utils/cloudinary.ts'
 import { responseAPI } from '../utils/responseAPI.ts'
 import { Types } from 'mongoose';
 import jwt, { JwtPayload } from "jsonwebtoken";
@@ -72,8 +72,14 @@ const registerUser = asyncHandler(async (req: Request, res:Response, next: NextF
             full_name,
             email,
             password,
-            avatar: avatar.url,
-            cover_image: cover_image?.url || ""
+            avatar: {
+                public_id: avatar.public_id,
+                url: avatar.url
+            },
+            cover_image: {
+                public_id: cover_image?.public_id || "",
+                url: cover_image?.url || ""
+            },
         })
 
         // check user created successfully
@@ -195,6 +201,8 @@ const refreshAccessToken = asyncHandler( async (req: Request, res:Response, next
 })
 
 const updateCoverImage = asyncHandler( async (req: Request, res:Response, next: NextFunction)=> {
+
+    // old image delete ?
     try{
         const user = req.user
         // @ts-ignore
@@ -202,17 +210,18 @@ const updateCoverImage = asyncHandler( async (req: Request, res:Response, next: 
         if(!localCoverImagePath) {
             throw new errorAPI(401, "image not found")
         }
-        const uploadedImage = await uploadOnCloudinary(localCoverImagePath)
-        if(!uploadedImage) {
+        const cover_image = await uploadOnCloudinary(localCoverImagePath)
+        if(!cover_image) {
             throw new errorAPI(401, "cover image upload failed")
         }
+        
+        const updatedUser = await User.findByIdAndUpdate(
+            req.user._id,
+            {cover_image: { public_id: cover_image.public_id, url: cover_image.url }},
+            {new: true}
+        ).select("-password -refresh_token")
 
-        user.cover_image = uploadedImage.url
-
-        const updatedUser = await User.findByIdAndUpdate(user._id,
-            {cover_image: uploadedImage.url},
-            {new: true})
-            .select("-password -refresh_token")
+        await deleteFromCloudinary(user.cover_image.public_id, "image")
 
         return res.status(200)
             .json(
@@ -227,25 +236,34 @@ const updateCoverImage = asyncHandler( async (req: Request, res:Response, next: 
 const updateAvatar = asyncHandler( async (req: Request, res:Response, next: NextFunction)=> {
     try{
         const localAvatarPath = req.file?.path
-
+        const user = req.user
         if(!localAvatarPath) {
             throw new errorAPI(404, "image not found")
         }
 
-        const avatarImage = await uploadOnCloudinary(localAvatarPath)
-        if(!avatarImage) {
+        const avatar = await uploadOnCloudinary(localAvatarPath)
+        if(!avatar) {
             throw new errorAPI(404, "avatar upload failed")
         }
-        console.log(avatarImage.url)
-        const updatedUser = await User.findByIdAndUpdate(req.user._id, {avatar: avatarImage.url}, {new: true}).select("-password -refresh_token")
+
+        const updatedUser = await User
+            .findByIdAndUpdate(
+                req.user._id,
+        {avatar: { public_id: avatar.public_id, url: avatar.url }},
+        {new: true}
+            ).select("-password -refresh_token")
+
         console.log(updatedUser)
         if(!updatedUser) {
             throw new errorAPI(404, "invalid user")
         }
 
+        await deleteFromCloudinary(user.avatar.public_id, "image")
+
         return res.status(200).json(
             new responseAPI(201, updatedUser, "user avatar updated successfully")
         )
+
     } catch (err) {
         // @ts-ignore
         throw new errorAPI(err?.statusCode || 401, err?.message || "avatar upload failed")
@@ -288,7 +306,8 @@ const deleteUser = asyncHandler( async (req: Request, res:Response, next: NextFu
         if (!user) {
             throw new errorAPI(404, 'User not found');
         }
-
+        await deleteFromCloudinary(user.avatar.public_id, "image")
+        await deleteFromCloudinary(user.cover_image.public_id, "image")
         res.status(200).json(
             new responseAPI(201, {} ,'User deleted successfully')
         )
