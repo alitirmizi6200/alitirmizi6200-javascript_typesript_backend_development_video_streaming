@@ -4,7 +4,7 @@ import { errorAPI } from "../utils/errorAPI.ts"
 import { User } from "../models/user.model.ts"
 import { uploadOnCloudinary, deleteFromCloudinary} from '../utils/cloudinary.ts'
 import { responseAPI } from '../utils/responseAPI.ts'
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import jwt, { JwtPayload } from "jsonwebtoken";
 
 interface IJwtPayload extends JwtPayload {
@@ -330,4 +330,120 @@ const getCurrentUser = asyncHandler( async (req: Request, res:Response, next: Ne
     }
 })
 
-export { registerUser, loginUser, logoutUser, refreshAccessToken, updateCoverImage, updateAvatar, updatePassword, deleteUser, getCurrentUser}
+const getChannelProfile = asyncHandler( async (req: Request, res:Response, next: NextFunction)=> {
+    try{
+        const { username } = req.params || req.body
+
+        if(!username) {
+            throw new errorAPI( 401, "Unable to get username")
+        }
+        const channel = await User.aggregate([
+            {
+                $match: {
+                    username: username?.toLowerCase()
+                }
+            },{
+                $lookup: {
+                    from: "subscriptions",
+                    localField: "_id",
+                    foreignField: "channel",
+                    as: "subscribers"
+                }
+            },{
+                $lookup: {
+                    from: "subscriptions",
+                    localField: "_id",
+                    foreignField: "subscriber",
+                    as: "subscribed"
+                }
+            },{
+                $addFields: {
+                    totalSubscribers: {
+                        $size: "$subscribers"
+                    },
+                    totalSubscribed: {
+                        $size: "$subscribed"
+                    },
+                    isSubscribed: {
+                        $cond: {
+                            if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+                            then: true ,
+                            else: false
+                        }
+                    }
+                }
+            },{
+                $project: {
+                    totalSubscribers: 1,
+                    totalSubscribed: 1,
+                    isSubscribed: 1,
+                    full_name: 1,
+                    username: 1,
+                    cover_image: 1,
+                    avatar: 1
+                }
+            }
+        ])
+
+        if(!channel?.length){
+            throw new errorAPI( 401, "channel does not exist")
+        }
+        return res.status(200).json(
+            new responseAPI(201, channel[0],"channel fetched successfully")
+        )
+    } catch (err) {
+        // @ts-ignore
+        throw new errorAPI(err?.statusCode || 401, err?.message || "Unable to get user channel details")
+    }
+})
+
+const getWatchHistory = asyncHandler( async (req: Request, res:Response, next: NextFunction)=> {
+    try{
+        const currentUserWatchHistory = await User.aggregate([
+            {
+                $match: new mongoose.Types.ObjectId(req.user._id)
+            },{
+                $lookup:{
+                    from: "videos",
+                    localField: "watch_history",
+                    foreignField: "_id",
+                    as: "watch_history",
+
+                    pipeline: [
+                        {
+                            $lookup:{
+                                from: "users",
+                                localField: "owner",
+                                foreignField: "_id",
+                                as: "owner",
+
+                                pipeline: [{
+                                    $project: {
+                                        username: 1,
+                                        avatar: 1,
+                                        full_name: 1
+                                    }
+                                }, {
+                                    $addFields: {
+                                        owner: {
+                                            $first: "$owner"
+                                        }
+                                    }
+                                }]
+                            }
+                        }
+                    ]
+                }
+            }
+        ])
+
+        return res.status(200).json(
+            new responseAPI(201, currentUserWatchHistory[0].watch_history,"watch history fetched successfully")
+        )
+    } catch (err) {
+        // @ts-ignore
+        throw new errorAPI(err?.statusCode || 401, err?.message || "Unable to get watch_history")
+    }
+})
+
+export { registerUser, loginUser, logoutUser, refreshAccessToken, updateCoverImage, updateAvatar, updatePassword, deleteUser, getCurrentUser, getChannelProfile, getWatchHistory}

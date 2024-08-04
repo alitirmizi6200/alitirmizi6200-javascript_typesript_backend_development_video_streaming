@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { registerUser, loginUser, logoutUser, refreshAccessToken, updatePassword, getCurrentUser, deleteUser,  updateAvatar, updateCoverImage} from '../controllers/user.controller.ts'
+import { registerUser, loginUser, logoutUser, refreshAccessToken, updatePassword, getCurrentUser, deleteUser,  updateAvatar, updateCoverImage, getChannelProfile, getWatchHistory} from '../controllers/user.controller.ts'
 import { upload } from "../middlewares/multer.middleware.ts"
 import { verifyJWT } from '../middlewares/auth.middleware.ts'
 
@@ -17,6 +17,7 @@ userRouter.route("/register").post(upload.fields([
 
 userRouter.route("/login").post(loginUser)
 
+userRouter.route("/channel/:username").get(getChannelProfile)
 // secure routes
 userRouter.route("/logout").post(verifyJWT, logoutUser)
 
@@ -31,5 +32,7 @@ userRouter.route("/delete-current-user").delete(verifyJWT, deleteUser)
 userRouter.route("/update-avatar").patch(verifyJWT, upload.single("avatar"), updateAvatar)
 
 userRouter.route("/update-cover-image").patch(verifyJWT, upload.single( "cover_image"), updateCoverImage)
+
+userRouter.route("/watch-history").get(verifyJWT, getChannelProfile)
 
 export {userRouter}
